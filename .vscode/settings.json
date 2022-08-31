@@ -1,0 +1,11 @@
+{
+  "files.associations": {
+    "algorithm": "cpp",
+    "fstream": "cpp",
+    "sstream": "cpp",
+    "xiosbase": "cpp",
+    "xlocmes": "cpp",
+    "__config": "cpp",
+    "locale": "cpp"
+  }
+}
