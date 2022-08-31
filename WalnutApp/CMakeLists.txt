@@ -7,4 +7,4 @@ add_executable(walnutapp
 	src/WalnutApp.cpp
 )
 
-target_link_libraries(walnutapp walnut)
+target_link_libraries(walnutapp walnut libzedtracker)

@@ -7,6 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # add_compile_definitions("NDEBUG")
 
 add_subdirectory(Walnut)
+add_subdirectory(BodyTracking)
 add_subdirectory(WalnutApp)
 
 # will create compile commands link in the root of the project

@@ -7,3 +7,6 @@
 [submodule "Walnut/vendor/glfw"]
 	path = Walnut/vendor/glfw
 	url = https://www.github.com/glfw/glfw.git
+[submodule "BodyTracking"]
+	path = BodyTracking
+	url = https://github.com/DistrictCinema/BodyTracking.git
