@@ -34,6 +34,9 @@ add_subdirectory(vendor/imgui)
 
 #stb-image
 add_subdirectory(vendor/stb-image)
+
+# nativefiledialog
+add_subdirectory(vendor/nativefiledialog)
 # ===============================
 
 # ========== walnut =============
@@ -54,9 +57,11 @@ target_link_libraries(walnut PUBLIC glfw)
 target_link_libraries(walnut PUBLIC imgui)
 target_link_libraries(walnut PUBLIC glm)
 target_link_libraries(walnut PUBLIC stbimage)
+target_link_libraries(walnut PUBLIC nativefiledialog)
 # =================================
 
 # ========== include dir ==========
 target_include_directories(walnut PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(walnut PUBLIC "${PROJECT_SOURCE_DIR}/vendor/stb_image")
+target_include_directories(walnut PUBLIC "${PROJECT_SOURCE_DIR}/vendor/nativefiledialog/src/include")
 # =================================
