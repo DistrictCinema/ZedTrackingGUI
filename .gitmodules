@@ -13,3 +13,4 @@
 [submodule "Walnut/vendor/nativefiledialog"]
 	path = Walnut/vendor/nativefiledialog
 	url = https://github.com/AlvaroBarua/nativefiledialog.git
+	branch = CMakeLists
