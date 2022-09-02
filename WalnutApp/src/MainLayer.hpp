@@ -191,6 +191,15 @@ public:
 					if (zed_tracker->isOpened()) {
 						zed_tracker->close();
 					}
+					zed_tracker->configureCamera();
+				}
+				ImGui::SameLine();
+				// Close Zed camera
+				if (ImGui::Button("Close Camera")) {
+					if (zed_tracker->isOpened()) {
+						zed_tracker->close();
+					}
+					zed_tracker->close();
 				}
 
 				ImGui::Dummy(ImVec2(0.0f, 20.0f));
