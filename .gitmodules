@@ -10,3 +10,6 @@
 [submodule "BodyTracking"]
 	path = BodyTracking
 	url = https://github.com/DistrictCinema/BodyTracking.git
+[submodule "Walnut/vendor/nativefiledialog"]
+	path = Walnut/vendor/nativefiledialog
+	url = https://github.com/AlvaroBarua/nativefiledialog.git
