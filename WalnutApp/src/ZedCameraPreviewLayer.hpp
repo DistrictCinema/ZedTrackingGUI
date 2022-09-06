@@ -13,7 +13,6 @@ public:
 	}
 
 	virtual void OnAttach() override {
-
 	}
 
 	virtual void OnDetach() override {
@@ -26,7 +25,12 @@ public:
       cv::Mat image_mat = zed_tracker->fetch_image();
       cv::cvtColor(image_mat, image_mat, cv::COLOR_BGRA2RGBA);
       sl::Resolution imgRes = zed_tracker->config.camera_config.resolution;
-      image_preview = std::make_shared<Walnut::Image>(imgRes.width, imgRes.height, Walnut::ImageFormat::RGBA, image_mat.data);
+			if (image_preview.use_count() == 0) {
+				image_preview = std::make_shared<Walnut::Image>(imgRes.width, imgRes.height, Walnut::ImageFormat::RGBA, image_mat.data);
+			}
+			else {
+				image_preview->SetData(image_mat.data);
+			}
 		}
 	}
 

@@ -2,6 +2,7 @@
 #include <deque>
 #include <nfd.h>
 #include <chrono>
+#include <math.h>
 
 #include "Walnut/Application.h"
 #include "magic_enum.hpp"
@@ -27,6 +28,8 @@ private:
 	std::shared_ptr<ZedTracker> zed_tracker;
 	sl::float3 lastPosition;
 	std::chrono::steady_clock::time_point t_start;
+	vector<float> arm_linearity_history;
+	vector<float> response_time_history;
 	vector<float> x_vel_history;
 	vector<float> y_vel_history;
 	vector<float> z_vel_history;
@@ -34,11 +37,14 @@ private:
 
 public:
 	MainLayer(std::shared_ptr<ZedTracker> _zed_tracker) {
+		udp.setDest("10.104.10.219", 9321);
 		udp.init();
 		zed_tracker = _zed_tracker;
 		lastPosition = sl::float3(0.0f, 0.0f, 0.0f);
 		t_start = std::chrono::high_resolution_clock::now();
 
+		arm_linearity_history.push_back(0.0f);
+		response_time_history.push_back(0.0f);
 		x_vel_history.push_back(0.0f);
 		y_vel_history.push_back(0.0f);
 		z_vel_history.push_back(0.0f);
@@ -55,6 +61,7 @@ public:
 		zed_tracker->config.obj_det_params.body_format = sl::BODY_FORMAT::POSE_18;
 		zed_tracker->config.obj_det_params.detection_model = sl::DETECTION_MODEL::HUMAN_BODY_ACCURATE;
 		zed_tracker->config.objectTracker_parameters_rt.detection_confidence_threshold = 25.0f;
+		zed_tracker->config.enableRecording = false;
 		zed_tracker->config.recording_parameters.compression_mode = sl::SVO_COMPRESSION_MODE::H264;
 		zed_tracker->config.recording_parameters.video_filename = sl::String("./out.svo");
 		// Tracking options
@@ -90,7 +97,22 @@ public:
 			sl::float3 velocity = (position - lastPosition) * 10 / delta_time_ms;
 			lastPosition = position;
 
+			// Get variable controls
+			float percentCtrl[2] = {0.0f, 0.0f};
+
 			// Store velocity history
+			for (GestureDetection detection : zed_tracker->runtime_data.gestures[zed_tracker->runtime_data.headTrackId]) {
+				if (detection.gesture == Gesture::RightArmStraight) {
+					percentCtrl[0] = detection.percentComplete;
+					arm_linearity_history.push_back(detection.percentComplete);
+					if (arm_linearity_history.size() > 100) arm_linearity_history.erase(arm_linearity_history.begin());
+				}
+				else if (detection.gesture == Gesture::LeftArmStraight) {
+					percentCtrl[1] = detection.percentComplete;
+				}
+			}
+			response_time_history.push_back(1000/delta_time_ms);
+			if (response_time_history.size() > 100) response_time_history.erase(response_time_history.begin());
 			x_vel_history.push_back(velocity.x);
 			if (x_vel_history.size() > 100) x_vel_history.erase(x_vel_history.begin());
 			y_vel_history.push_back(velocity.y);
@@ -102,7 +124,7 @@ public:
 			
 			// Send information over UDP
 			char packet[64];
-			snprintf(packet, 64, "%.4f %.4f %.4f %d ", position.x, position.y, position.z, clusterSize);
+			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %.4f ", position.x, position.y, position.z, clusterSize, percentCtrl[0], percentCtrl[1]);
 			udp.send(packet);
 		}
 	}
@@ -167,35 +189,38 @@ public:
 
 				// Recording options
 				ImGui::Checkbox("Record to SVO", &zed_tracker->config.enableRecording);
-				static char svo_save_file_path[128] = "";
-				ImGui::InputText("", svo_save_file_path, 128);
-				ImGui::SameLine();
-				if (ImGui::Button("Browse")) {
-					nfdchar_t *outPath = NULL;
-					nfdresult_t result = NFD_OpenDialog( NULL, NULL, &outPath );
-							
-					if ( result == NFD_OKAY ) {
-						for (int i = 0; true; i++) {
-							svo_save_file_path[i] = outPath[i];
-							if (outPath[i] == '\0') {
-								break;
+				if (zed_tracker->config.enableRecording) {
+					static char svo_save_file_path[128] = "";
+					ImGui::InputText("", svo_save_file_path, 128);
+					ImGui::SameLine();
+					if (ImGui::Button("Browse")) {
+						nfdchar_t *saveOutPath = NULL;
+						nfdresult_t result = NFD_OpenDialog( NULL, NULL, &saveOutPath );
+								
+						if ( result == NFD_OKAY ) {
+							for (int i = 0; true; i++) {
+								svo_save_file_path[i] = saveOutPath[i];
+								if (saveOutPath[i] == '\0') {
+									break;
+								}
 							}
+							NFD_Free(saveOutPath);
 						}
-						zed_tracker->config.recording_parameters.video_filename = sl::String(svo_save_file_path);
-						NFD_Free(outPath);
 					}
+					zed_tracker->config.recording_parameters.video_filename = sl::String(svo_save_file_path);
 				}
 
 				// Open and start ZED camera
-				if (ImGui::Button("Open Camera")) {
+				if (ImGui::Button("Open Camera", ImVec2(200.0f, 50.0f))) {
 					if (zed_tracker->isOpened()) {
 						zed_tracker->close();
 					}
+					zed_tracker->config.init_parameters.input = sl::InputType();
 					zed_tracker->configureCamera();
 				}
 				ImGui::SameLine();
 				// Close Zed camera
-				if (ImGui::Button("Close Camera")) {
+				if (ImGui::Button("Close Camera", ImVec2(200.0f, 50.0f))) {
 					if (zed_tracker->isOpened()) {
 						zed_tracker->close();
 					}
@@ -204,32 +229,34 @@ public:
 
 				ImGui::Dummy(ImVec2(0.0f, 20.0f));
 
-				static char svo_file_path[128] = "C:\\Users\\patricks\\Downloads\\out.svo";
-				ImGui::InputText("", svo_file_path, 128);
-				ImGui::SameLine();
-				if (ImGui::Button("Browse")) {
-					nfdchar_t *outPath = NULL;
-					nfdresult_t result = NFD_OpenDialog( NULL, NULL, &outPath );
-							
-					if ( result == NFD_OKAY ) {
-						for (int i = 0; true; i++) {
-							svo_file_path[i] = outPath[i];
-							if (outPath[i] == '\0') {
-								break;
+				if (!zed_tracker->config.enableRecording) {
+					static char svo_file_path[128] = "C:\\Users\\patricks\\Downloads\\out.svo";
+					ImGui::InputText("", svo_file_path, 128);
+					ImGui::SameLine();
+					if (ImGui::Button("Browse")) {
+						nfdchar_t *outPath = NULL;
+						nfdresult_t result = NFD_OpenDialog( NULL, NULL, &outPath );
+								
+						if ( result == NFD_OKAY ) {
+							for (int i = 0; true; i++) {
+								svo_file_path[i] = outPath[i];
+								if (outPath[i] == '\0') {
+									break;
+								}
 							}
+							NFD_Free(outPath);
 						}
-						NFD_Free(outPath);
 					}
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Start Playback")) {
-					if (zed_tracker->isOpened()) {
-						zed_tracker->close();
+					ImGui::SameLine();
+					if (ImGui::Button("Start Playback")) {
+						if (zed_tracker->isOpened()) {
+							zed_tracker->close();
+						}
+						zed_tracker->configurePlayback(svo_file_path);
 					}
-					zed_tracker->configurePlayback(svo_file_path);
+				
+					ImGui::EndTabItem();
 				}
-			
-				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem("Realtime Config")) {
 
@@ -252,18 +279,35 @@ public:
 
 		ImGui::Begin("Stats");
 
-		char xVel[32];
-		snprintf(xVel, 32, "X Vel: %.3f m/s", x_vel_history.back());
-		ImGui::PlotLines("", x_vel_history.data(), x_vel_history.size(), 0, xVel, -5.0f, 5.0f, ImVec2(0, 80.0f));
-		char yVel[32];
-		snprintf(yVel, 32, "Y Vel: %.3f m/s", y_vel_history.back());
-		ImGui::PlotLines("", y_vel_history.data(), y_vel_history.size(), 0, yVel, -5.0f, 5.0f, ImVec2(0, 80.0f));
-		char zVel[32];
-		snprintf(zVel, 32, "Z Vel: %.3f m/s", z_vel_history.back());
-		ImGui::PlotLines("", z_vel_history.data(), z_vel_history.size(), 0, zVel, -5.0f, 5.0f, ImVec2(0, 80.0f));
-		char speed[32];
-		snprintf(speed, 32, "Speed: %.3f m/s", speed_history.back());
-		ImGui::PlotLines("", speed_history.data(), speed_history.size(), 0, speed, -5.0f, 5.0f, ImVec2(0, 80.0f));
+		char labelBuff[32];
+
+		snprintf(labelBuff, 32, "Right Arm Lin: %.2f", arm_linearity_history.back());
+		ImGui::PlotLines("", arm_linearity_history.data(), arm_linearity_history.size(), 0, labelBuff, 0.0f, 1.0f, ImVec2(0, 80.0f));
+		snprintf(labelBuff, 32, "%.2f fps", response_time_history.back());
+		ImGui::PlotLines("", response_time_history.data(), response_time_history.size(), 0, labelBuff, 0.0f, 30.0f, ImVec2(0, 80.0f));
+		snprintf(labelBuff, 32, "X Vel: %.3f m/s", x_vel_history.back());
+		ImGui::PlotLines("", x_vel_history.data(), x_vel_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
+		snprintf(labelBuff, 32, "Y Vel: %.3f m/s", y_vel_history.back());
+		ImGui::PlotLines("", y_vel_history.data(), y_vel_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
+		snprintf(labelBuff, 32, "Z Vel: %.3f m/s", z_vel_history.back());
+		ImGui::PlotLines("", z_vel_history.data(), z_vel_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
+		snprintf(labelBuff, 32, "Speed: %.3f m/s", speed_history.back());
+		ImGui::PlotLines("", speed_history.data(), speed_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
+
+		ImGui::End();
+
+		ImGui::Begin("Gestures");
+		
+		constexpr auto gestureNames = magic_enum::enum_names<Gesture>();
+		
+		char buff[512];
+		for (std::pair<int, std::vector<GestureDetection>> personPair : zed_tracker->runtime_data.gestures) {
+			int personId = personPair.first;
+			for (GestureDetection detection : personPair.second) {
+				snprintf(buff, 512, "Person Id: %d\nGesture: %s\nPercent Complete: %.3f\nDescription: %s\n", personId, gestureNames.at((int)detection.gesture).data(), detection.percentComplete, detection.description.c_str());
+				ImGui::Text(buff);
+			}
+		}
 
 		ImGui::End();
 	}
