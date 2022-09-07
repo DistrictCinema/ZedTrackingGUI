@@ -186,14 +186,6 @@ public:
 				ImGui::Combo("Coordinate System", &coordinate_system_current_idx, coordinate_system_options, 5);
 				zed_tracker->config.init_parameters.coordinate_system = (sl::COORDINATE_SYSTEM)coordinate_system_current_idx;
 
-				static bool sdk_verbose = true;
-				ImGui::Checkbox("SDK Verbose", &sdk_verbose);
-				zed_tracker->config.init_parameters.sdk_verbose = (int)sdk_verbose;
-
-				ImGui::Checkbox("Set Camera Static", &zed_tracker->config.positional_tracking_parameters.set_as_static);
-				ImGui::Checkbox("Enable Tracking (across image flows)", &zed_tracker->config.obj_det_params.enable_tracking);
-				ImGui::Checkbox("Enable Body Fitting (smooth skeleton moves)", &zed_tracker->config.obj_det_params.enable_body_fitting);
-
 				static int detection_model_current_idx = (int)zed_tracker->config.obj_det_params.detection_model;
 				char detection_model_options[512];
 				enumToString<sl::DETECTION_MODEL>(detection_model_options);
@@ -280,6 +272,20 @@ public:
 				ImGui::InputFloat("Max Velocity", &zed_tracker->tracking_options.maxVelocity, 0.1f, 1.0f, "%.3f");
 				ImGui::InputFloat("Cluster Threshold (cm)", &zed_tracker->tracking_options.clusterThreshold, 1.0f, 10.0f, "%.3f");
 				ImGui::InputInt("Calibration Buffer", &zed_tracker->tracking_options.calibrationBuffer, 10, 100);
+
+				// Camera settings
+				static int exposure = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::EXPOSURE);
+				ImGui::SliderInt("Camera Exposure", &exposure, 0, 8);
+				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::EXPOSURE, exposure);
+				static int gain = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::GAIN);
+				ImGui::SliderInt("Camera Gain", &gain, 0, 8);
+				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::GAIN, gain);
+				static int gamma = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::GAMMA);
+				ImGui::SliderInt("Camera Gamma", &gamma, 0, 8);
+				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::GAMMA, gamma);
+				static int sharpness = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::SHARPNESS);
+				ImGui::SliderInt("Camera Sharpness", &sharpness, 0, 8);
+				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::SHARPNESS, sharpness);
 
 				if (ImGui::Button("Calibrate Camera")) {
 					zed_tracker->calibrate();
