@@ -97,13 +97,11 @@ Walnut::Application* Walnut::CreateApplication(int argc, char** argv) {
 
 	// Layers
 	std::shared_ptr<MainLayer> mainLayer = std::make_shared<MainLayer>(zed_tracker);
-	std::shared_ptr<ZedCameraPreviewLayer> zedCameraPreviewLayer = std::make_shared<ZedCameraPreviewLayer>(zed_tracker);
 
 	Walnut::Application* app = new Walnut::Application(spec);
 	// Set Theme
 	embraceTheDarkness();
 
 	app->PushLayer(mainLayer);
-	app->PushLayer(zedCameraPreviewLayer);
 	return app;
 }

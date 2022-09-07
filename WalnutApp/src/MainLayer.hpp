@@ -26,6 +26,7 @@ class MainLayer : public Walnut::Layer {
 private:
 	UDP udp;
 	std::shared_ptr<ZedTracker> zed_tracker;
+	std::shared_ptr<Walnut::Image> image_preview;
 	sl::float3 lastPosition;
 	std::chrono::steady_clock::time_point t_start;
 	vector<float> arm_linearity_history;
@@ -87,6 +88,20 @@ public:
 			// Fetch from ZED
 			sl::float3 position = zed_tracker->fetch_track_pos();
 			int clusterSize = zed_tracker->fetch_cluster_size();
+
+			// Get image preview
+			cv::Mat image_mat = zed_tracker->fetch_image();
+			cv::cvtColor(image_mat, image_mat, cv::COLOR_BGRA2RGBA);
+			sl::Resolution imgRes = zed_tracker->config.camera_config.resolution;
+			if (image_preview.use_count() == 0) {
+				image_preview = std::make_shared<Walnut::Image>(imgRes.width, imgRes.height, Walnut::ImageFormat::RGBA, image_mat.data);
+			}
+			else if (imgRes.width != image_preview->GetWidth() || imgRes.height != image_preview->GetHeight()) {
+				image_preview->Resize(imgRes.width, imgRes.height);
+			}
+			else {
+				image_preview->SetData(image_mat.data);
+			}
 
 			// Calculate delta time
 			auto t_end = std::chrono::high_resolution_clock::now();
@@ -307,6 +322,17 @@ public:
 				snprintf(buff, 512, "Person Id: %d\nGesture: %s\nPercent Complete: %.3f\nDescription: %s\n", personId, gestureNames.at((int)detection.gesture).data(), detection.percentComplete, detection.description.c_str());
 				ImGui::Text(buff);
 			}
+		}
+
+		ImGui::End();
+
+		ImGui::Begin("ZED Camera Preview");
+
+		if (image_preview != nullptr) {
+			// Resize to window
+			uint32_t width = ImGui::GetWindowSize().x;
+			uint32_t height = width * (double)image_preview->GetHeight() / image_preview->GetWidth();
+		ImGui::Image(image_preview->GetDescriptorSet(), ImVec2(width, height));
 		}
 
 		ImGui::End();
