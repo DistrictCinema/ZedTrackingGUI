@@ -30,7 +30,7 @@ private:
 	sl::float3 lastPosition;
 	std::chrono::steady_clock::time_point t_start;
 	vector<vector<float>> graphs;
-	float rightArmTrigger;
+	float armTrigger[2];
 
 public:
 	MainLayer(std::shared_ptr<ZedTracker> _zed_tracker) {
@@ -39,8 +39,6 @@ public:
 		zed_tracker = _zed_tracker;
 		lastPosition = sl::float3(0.0f, 0.0f, 0.0f);
 		t_start = std::chrono::high_resolution_clock::now();
-
-		graphs = vector<vector<float>>(7, vector<float>(1, 0.0f));
 
 		// Camera options
 		zed_tracker->config.init_parameters.camera_resolution = sl::RESOLUTION::HD1080;
@@ -107,26 +105,38 @@ public:
 			lastPosition = position;
 
 			// Calculate arm controls
-			rightArmTrigger = runData.headTrackId != -1 ? runData.gestureCompletion[runData.headTrackId][Gesture::RightArmStraight] : 0.0f;
-			bool rightArmControl = runData.headTrackId != -1 ? runData.armControl[runData.headTrackId][1] : false;
-			float rightArmRange = 0.0f;
-			if (rightArmControl) {
+			Gesture armGestures[2][2] = {
+				{Gesture::LeftArmStraight, Gesture::LeftArmControl},
+				{Gesture::RightArmStraight, Gesture::RightArmControl}
+			};
+			bool armControl[2];
+			float armRange[2] = {0.0f, 0.0f};
+			for (int i = 0; i < 2; i++) {
+				armTrigger[i] = runData.headTrackId != -1 ? runData.gestureCompletion[runData.headTrackId][(int)armGestures[i][0]] : 0.0f;
+				armControl[i] = runData.headTrackId != -1 ? runData.armControl[runData.headTrackId][i] : false;
 				for (GestureDetection detection : runData.gestures[runData.headTrackId]) {
-					if (detection.gesture == Gesture::RightArmStraight) {
-						rightArmRange = detection.percentComplete;
+					if (detection.gesture == armGestures[i][1] && armControl[i]) {
+						armRange[i] = detection.percentComplete;
 					}
 				}
 			}
 
 			// Store velocity history
 			float graphValues[] = {
-				rightArmRange,
+				armRange[0],
+				armRange[1],
 				1000.0 / delta_time_ms,
 				velocity.x,
 				velocity.y,
 				velocity.z,
 				sl::float3::distance(sl::float3(0.0f, 0.0f, 0.0f), velocity)
 			};
+			int numValues = sizeof(graphValues) / sizeof(float);
+			int numToAdd = numValues - graphs.size();
+			std::cout << numToAdd << std::endl;
+			for (int i = 0; i < numToAdd; i++) {
+				graphs.push_back(vector<float>(100, 0.0f));
+			}
 			for (int i = 0; i < graphs.size(); i++) {
 				graphs[i].push_back(graphValues[i]);
 				if (graphs[i].size() > 100) graphs[i].erase(graphs[i].begin());
@@ -134,7 +144,7 @@ public:
 			
 			// Send information over UDP
 			char packet[64];
-			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %d ", position.x, position.y, position.z, clusterSize, rightArmRange, (int)rightArmControl);
+			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %d %.4f %d ", position.x, position.y, position.z, clusterSize, armRange[0], (int)armControl[0], armRange[1], (int)armControl[1]);
 			udp.send(packet);
 		}
 	}
@@ -295,10 +305,12 @@ public:
 
 		ImGui::Begin("Stats");
 
-		ImGui::ProgressBar(rightArmTrigger, ImVec2(0, 80.0f), "Trigger");
+		ImGui::ProgressBar(armTrigger[0], ImVec2(0, 80.0f), "Left Trigger");
+		ImGui::ProgressBar(armTrigger[1], ImVec2(0, 80.0f), "Right Trigger");
 
 		char labelBuff[64];
 		char labels[][64] = {
+			"Left Arm Control: %.2f",
 			"Right Arm Control: %.2f",
 			"%.2f fps",
 			"X Vel: %.3f m/s",
@@ -307,6 +319,7 @@ public:
 			"Speed: %.3f m/s"
 		};
 		float ranges[][2] = {
+			{ 0.0f, 1.0f },
 			{ 0.0f, 1.0f },
 			{ 0.0f, 30.0f },
 			{ -5.0f, 5.0f },
