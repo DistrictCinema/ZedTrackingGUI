@@ -3,7 +3,6 @@
 #include "ZedTracker.hpp"
 
 #include "MainLayer.hpp"
-#include "ZedCameraPreviewLayer.hpp"
 
 void embraceTheDarkness() {
   ImVec4* colors = ImGui::GetStyle().Colors;

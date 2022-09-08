@@ -29,12 +29,8 @@ private:
 	std::shared_ptr<Walnut::Image> image_preview;
 	sl::float3 lastPosition;
 	std::chrono::steady_clock::time_point t_start;
-	vector<float> arm_linearity_history;
-	vector<float> response_time_history;
-	vector<float> x_vel_history;
-	vector<float> y_vel_history;
-	vector<float> z_vel_history;
-	vector<float> speed_history;
+	vector<vector<float>> graphs;
+	float rightArmTrigger;
 
 public:
 	MainLayer(std::shared_ptr<ZedTracker> _zed_tracker) {
@@ -44,12 +40,7 @@ public:
 		lastPosition = sl::float3(0.0f, 0.0f, 0.0f);
 		t_start = std::chrono::high_resolution_clock::now();
 
-		arm_linearity_history.push_back(0.0f);
-		response_time_history.push_back(0.0f);
-		x_vel_history.push_back(0.0f);
-		y_vel_history.push_back(0.0f);
-		z_vel_history.push_back(0.0f);
-		speed_history.push_back(0.0f);
+		graphs = vector<vector<float>>(7, vector<float>(1, 0.0f));
 
 		// Camera options
 		zed_tracker->config.init_parameters.camera_resolution = sl::RESOLUTION::HD1080;
@@ -85,12 +76,15 @@ public:
 		if (zed_tracker->isOpened()) {
 			zed_tracker->fetch();
 
+			// Get variables
+			ZedRuntimeData runData = zed_tracker->runtime_data;
+
 			// Fetch from ZED
 			sl::float3 position = zed_tracker->fetch_track_pos();
 			int clusterSize = zed_tracker->fetch_cluster_size();
 
 			// Get image preview
-			cv::Mat image_mat = zed_tracker->fetch_image();
+			cv::Mat image_mat = zed_tracker->fetch_image(true);
 			cv::cvtColor(image_mat, image_mat, cv::COLOR_BGRA2RGBA);
 			sl::Resolution imgRes = zed_tracker->config.camera_config.resolution;
 			if (image_preview.use_count() == 0) {
@@ -112,34 +106,35 @@ public:
 			sl::float3 velocity = (position - lastPosition) * 10 / delta_time_ms;
 			lastPosition = position;
 
-			// Get variable controls
-			float percentCtrl[2] = {0.0f, 0.0f};
-
-			// Store velocity history
-			for (GestureDetection detection : zed_tracker->runtime_data.gestures[zed_tracker->runtime_data.headTrackId]) {
-				if (detection.gesture == Gesture::RightArmStraight) {
-					percentCtrl[0] = detection.percentComplete;
-					arm_linearity_history.push_back(detection.percentComplete);
-					if (arm_linearity_history.size() > 100) arm_linearity_history.erase(arm_linearity_history.begin());
-				}
-				else if (detection.gesture == Gesture::LeftArmStraight) {
-					percentCtrl[1] = detection.percentComplete;
+			// Calculate arm controls
+			rightArmTrigger = runData.headTrackId != -1 ? runData.gestureCompletion[runData.headTrackId][Gesture::RightArmStraight] : 0.0f;
+			bool rightArmControl = runData.headTrackId != -1 ? runData.armControl[runData.headTrackId][1] : false;
+			float rightArmRange = 0.0f;
+			if (rightArmControl) {
+				for (GestureDetection detection : runData.gestures[runData.headTrackId]) {
+					if (detection.gesture == Gesture::RightArmStraight) {
+						rightArmRange = detection.percentComplete;
+					}
 				}
 			}
-			response_time_history.push_back(1000/delta_time_ms);
-			if (response_time_history.size() > 100) response_time_history.erase(response_time_history.begin());
-			x_vel_history.push_back(velocity.x);
-			if (x_vel_history.size() > 100) x_vel_history.erase(x_vel_history.begin());
-			y_vel_history.push_back(velocity.y);
-			if (y_vel_history.size() > 100) y_vel_history.erase(y_vel_history.begin());
-			z_vel_history.push_back(velocity.z);
-			if (z_vel_history.size() > 100) z_vel_history.erase(z_vel_history.begin());
-			speed_history.push_back(sl::float3::distance(sl::float3(0.0f, 0.0f, 0.0f), velocity));
-			if (speed_history.size() > 100) speed_history.erase(speed_history.begin());
+
+			// Store velocity history
+			float graphValues[] = {
+				rightArmRange,
+				1000.0 / delta_time_ms,
+				velocity.x,
+				velocity.y,
+				velocity.z,
+				sl::float3::distance(sl::float3(0.0f, 0.0f, 0.0f), velocity)
+			};
+			for (int i = 0; i < graphs.size(); i++) {
+				graphs[i].push_back(graphValues[i]);
+				if (graphs[i].size() > 100) graphs[i].erase(graphs[i].begin());
+			}
 			
 			// Send information over UDP
 			char packet[64];
-			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %.4f ", position.x, position.y, position.z, clusterSize, percentCtrl[0], percentCtrl[1]);
+			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %d ", position.x, position.y, position.z, clusterSize, rightArmRange, (int)rightArmControl);
 			udp.send(packet);
 		}
 	}
@@ -300,20 +295,30 @@ public:
 
 		ImGui::Begin("Stats");
 
-		char labelBuff[32];
+		ImGui::ProgressBar(rightArmTrigger, ImVec2(0, 80.0f), "Trigger");
 
-		snprintf(labelBuff, 32, "Right Arm Lin: %.2f", arm_linearity_history.back());
-		ImGui::PlotLines("", arm_linearity_history.data(), arm_linearity_history.size(), 0, labelBuff, 0.0f, 1.0f, ImVec2(0, 80.0f));
-		snprintf(labelBuff, 32, "%.2f fps", response_time_history.back());
-		ImGui::PlotLines("", response_time_history.data(), response_time_history.size(), 0, labelBuff, 0.0f, 30.0f, ImVec2(0, 80.0f));
-		snprintf(labelBuff, 32, "X Vel: %.3f m/s", x_vel_history.back());
-		ImGui::PlotLines("", x_vel_history.data(), x_vel_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
-		snprintf(labelBuff, 32, "Y Vel: %.3f m/s", y_vel_history.back());
-		ImGui::PlotLines("", y_vel_history.data(), y_vel_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
-		snprintf(labelBuff, 32, "Z Vel: %.3f m/s", z_vel_history.back());
-		ImGui::PlotLines("", z_vel_history.data(), z_vel_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
-		snprintf(labelBuff, 32, "Speed: %.3f m/s", speed_history.back());
-		ImGui::PlotLines("", speed_history.data(), speed_history.size(), 0, labelBuff, -5.0f, 5.0f, ImVec2(0, 80.0f));
+		char labelBuff[64];
+		char labels[][64] = {
+			"Right Arm Control: %.2f",
+			"%.2f fps",
+			"X Vel: %.3f m/s",
+			"Y Vel: %.3f m/s",
+			"Z Vel: %.3f m/s",
+			"Speed: %.3f m/s"
+		};
+		float ranges[][2] = {
+			{ 0.0f, 1.0f },
+			{ 0.0f, 30.0f },
+			{ -5.0f, 5.0f },
+			{ -5.0f, 5.0f },
+			{ -5.0f, 5.0f },
+			{ -5.0f, 5.0f }
+		};
+
+		for (int i = 0; i < graphs.size(); i++) {
+			snprintf(labelBuff, 64, labels[i], graphs[i].back());
+			ImGui::PlotLines("", graphs[i].data(), graphs[i].size(), 0, labelBuff, ranges[i][0], ranges[i][1], ImVec2(0, 80.0f));
+		}
 
 		ImGui::End();
 
