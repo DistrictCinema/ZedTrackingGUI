@@ -35,9 +35,9 @@ private:
 
 public:
 	MainLayer(std::shared_ptr<ZedTracker> _zed_tracker) {
-		livelink.setDest("10.104.10.219", 54321);
+		livelink.setDest("10.104.10.219", 9321);
 		livelink.init();
-		udp.setDest("10.104.10.219", 9321);
+		udp.setDest("10.104.10.219", 54321);
 		udp.init();
 		zed_tracker = _zed_tracker;
 		lastPosition = sl::float3(0.0f, 0.0f, 0.0f);
@@ -144,12 +144,18 @@ public:
 				if (graphs[i].size() > 100) graphs[i].erase(graphs[i].begin());
 			}
 			
-			// Send information over UDP
 			char packet[64];
-			snprintf(packet, 64, "%.4f %.4f %.4f 0.0 0.0 0.0 0.0 ", position.x, position.y, position.z);
+			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %.4f %.4f %.4f ", position.x, position.y, position.z, clusterSize, armRange[0], armRange[1], armTrigger[0], armTrigger[1]);
 			livelink.send(packet);
-			snprintf(packet, 64, "%d %.4f %.4f %.4f %.4f ", clusterSize, armRange[0], armRange[1], armTrigger[0], armTrigger[1]);
-			udp.send(packet);
+			// snprintf(packet, 64, "%d %.4f %.4f %.4f %.4f ", clusterSize, armRange[0], armRange[1], armTrigger[0], armTrigger[1]);
+			// udp.send(packet);
+
+			// Send information over UDP
+			// char packet[64];
+			// snprintf(packet, 64, "%.4f %.4f %.4f 0.0 0.0 0.0 0.0 ", position.x, position.y, position.z);
+			// livelink.send(packet);
+			// snprintf(packet, 64, "%d %.4f %.4f %.4f %.4f ", clusterSize, armRange[0], armRange[1], armTrigger[0], armTrigger[1]);
+			// udp.send(packet);
 		}
 	}
 
