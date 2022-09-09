@@ -24,6 +24,7 @@ void enumToString(char *retval) {
 
 class MainLayer : public Walnut::Layer {
 private:
+	UDP livelink;
 	UDP udp;
 	std::shared_ptr<ZedTracker> zed_tracker;
 	std::shared_ptr<Walnut::Image> image_preview;
@@ -34,6 +35,8 @@ private:
 
 public:
 	MainLayer(std::shared_ptr<ZedTracker> _zed_tracker) {
+		livelink.setDest("10.104.10.219", 54321);
+		livelink.init();
 		udp.setDest("10.104.10.219", 9321);
 		udp.init();
 		zed_tracker = _zed_tracker;
@@ -133,7 +136,6 @@ public:
 			};
 			int numValues = sizeof(graphValues) / sizeof(float);
 			int numToAdd = numValues - graphs.size();
-			std::cout << numToAdd << std::endl;
 			for (int i = 0; i < numToAdd; i++) {
 				graphs.push_back(vector<float>(100, 0.0f));
 			}
@@ -144,7 +146,9 @@ public:
 			
 			// Send information over UDP
 			char packet[64];
-			snprintf(packet, 64, "%.4f %.4f %.4f %d %.4f %d %.4f %d ", position.x, position.y, position.z, clusterSize, armRange[0], (int)armControl[0], armRange[1], (int)armControl[1]);
+			snprintf(packet, 64, "%.4f %.4f %.4f 0.0 0.0 0.0 0.0 ", position.x, position.y, position.z);
+			livelink.send(packet);
+			snprintf(packet, 64, "%d %.4f %d %.4f %d ", clusterSize, armRange[0], (int)armControl[0], armRange[1], (int)armControl[1]);
 			udp.send(packet);
 		}
 	}
@@ -156,15 +160,23 @@ public:
 		if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags)) {
 			if (ImGui::BeginTabItem("Network Config")) {
 
+				// LiveLink Network Settings
+				ImGui::InputText("LiveLink IP Address", livelink.ip, 128);
+
+				static char portBuff[10];
+				snprintf(portBuff, 10, "%d", livelink.port);
+				ImGui::InputText("LiveLink Port", portBuff, 10);
+				livelink.port = atoi(portBuff);
+
 				// Network Settings
 				ImGui::InputText("IP Address", udp.ip, 128);
 
-				static char port[10];
-				snprintf(port, 10, "%d", udp.port);
-				ImGui::InputText("Port", port, 10);
-				udp.port = atoi(port);
+				snprintf(portBuff, 10, "%d", udp.port);
+				ImGui::InputText("Port", portBuff, 10);
+				udp.port = atoi(portBuff);
 
 				if (ImGui::Button("Apply Network Config")) {
+					livelink.init();
 					udp.init();
 				}
 				
