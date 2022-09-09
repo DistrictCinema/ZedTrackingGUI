@@ -148,7 +148,7 @@ public:
 			char packet[64];
 			snprintf(packet, 64, "%.4f %.4f %.4f 0.0 0.0 0.0 0.0 ", position.x, position.y, position.z);
 			livelink.send(packet);
-			snprintf(packet, 64, "%d %.4f %d %.4f %d ", clusterSize, armRange[0], (int)armControl[0], armRange[1], (int)armControl[1]);
+			snprintf(packet, 64, "%d %.4f %.4f %.4f %.4f ", clusterSize, armRange[0], armRange[1], armTrigger[0], armTrigger[1]);
 			udp.send(packet);
 		}
 	}
@@ -160,20 +160,19 @@ public:
 		if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags)) {
 			if (ImGui::BeginTabItem("Network Config")) {
 
-				// LiveLink Network Settings
-				ImGui::InputText("LiveLink IP Address", livelink.ip, 128);
+				// Network Settings
+				static char ipBuff[32];
+				snprintf(ipBuff, 32, "%s", udp.ip);
+				ImGui::InputText("IP Address", ipBuff, 128);
 
 				static char portBuff[10];
 				snprintf(portBuff, 10, "%d", livelink.port);
 				ImGui::InputText("LiveLink Port", portBuff, 10);
-				livelink.port = atoi(portBuff);
-
-				// Network Settings
-				ImGui::InputText("IP Address", udp.ip, 128);
+				livelink.setDest(ipBuff, atoi(portBuff));
 
 				snprintf(portBuff, 10, "%d", udp.port);
 				ImGui::InputText("Port", portBuff, 10);
-				udp.port = atoi(portBuff);
+				udp.setDest(ipBuff, atoi(portBuff));
 
 				if (ImGui::Button("Apply Network Config")) {
 					livelink.init();
