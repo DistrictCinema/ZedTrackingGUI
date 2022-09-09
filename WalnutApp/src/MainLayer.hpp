@@ -283,28 +283,33 @@ public:
 			}
 			if (ImGui::BeginTabItem("Realtime Config")) {
 
-				ImGui::InputFloat("Smoothing", &zed_tracker->tracking_options.smoothing, 0.1f, 1.0f, "%.3f");
-				ImGui::InputFloat("Min Velocity", &zed_tracker->tracking_options.minVelocity, 0.1f, 1.0f, "%.3f");
-				ImGui::InputFloat("Max Velocity", &zed_tracker->tracking_options.maxVelocity, 0.1f, 1.0f, "%.3f");
-				ImGui::InputFloat("Cluster Threshold (cm)", &zed_tracker->tracking_options.clusterThreshold, 1.0f, 10.0f, "%.3f");
-				ImGui::InputInt("Calibration Buffer", &zed_tracker->tracking_options.calibrationBuffer, 10, 100);
+				if (zed_tracker->isOpened()) {
+					ImGui::InputFloat("Smoothing", &zed_tracker->tracking_options.smoothing, 0.1f, 1.0f, "%.3f");
+					ImGui::InputFloat("Min Velocity", &zed_tracker->tracking_options.minVelocity, 0.1f, 1.0f, "%.3f");
+					ImGui::InputFloat("Max Velocity", &zed_tracker->tracking_options.maxVelocity, 0.1f, 1.0f, "%.3f");
+					ImGui::InputFloat("Cluster Threshold (cm)", &zed_tracker->tracking_options.clusterThreshold, 1.0f, 10.0f, "%.3f");
+					ImGui::InputInt("Calibration Buffer", &zed_tracker->tracking_options.calibrationBuffer, 10, 100);
 
-				// Camera settings
-				static int exposure = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::EXPOSURE);
-				ImGui::SliderInt("Camera Exposure", &exposure, 0, 8);
-				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::EXPOSURE, exposure);
-				static int gain = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::GAIN);
-				ImGui::SliderInt("Camera Gain", &gain, 0, 8);
-				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::GAIN, gain);
-				static int gamma = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::GAMMA);
-				ImGui::SliderInt("Camera Gamma", &gamma, 0, 8);
-				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::GAMMA, gamma);
-				static int sharpness = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::SHARPNESS);
-				ImGui::SliderInt("Camera Sharpness", &sharpness, 0, 8);
-				zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::SHARPNESS, sharpness);
+					// Camera settings
+					static int exposure = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::EXPOSURE);
+					ImGui::SliderInt("Camera Exposure", &exposure, 0, 100);
+					zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::EXPOSURE, exposure);
+					static int gain = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::GAIN);
+					ImGui::SliderInt("Camera Gain", &gain, 0, 100);
+					zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::GAIN, gain);
+					static int gamma = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::GAMMA);
+					ImGui::SliderInt("Camera Gamma", &gamma, 1, 9);
+					zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::GAMMA, gamma);
+					static int sharpness = zed_tracker->zed.getCameraSettings(VIDEO_SETTINGS::SHARPNESS);
+					ImGui::SliderInt("Camera Sharpness", &sharpness, 0, 8);
+					zed_tracker->zed.setCameraSettings(VIDEO_SETTINGS::SHARPNESS, sharpness);
 
-				if (ImGui::Button("Calibrate Camera")) {
-					zed_tracker->calibrate();
+					if (ImGui::Button("Calibrate Camera")) {
+						zed_tracker->calibrate();
+					}
+				}
+				else {
+					ImGui::Text("Camera not running!");
 				}
 			
 				ImGui::EndTabItem();
